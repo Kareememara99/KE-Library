@@ -1,0 +1,135 @@
+Lab 3 - Problem 1 - Answers (Student ID: 2304032)
+DBMS: Microsoft SQL Server (T-SQL)
+Before Q1.1 and Q1.2: run problem1_DDL.sql then problem1_DML.sql.
+Before Q1.3: run problem1_DDL.sql only (tables empty).
+
+============================================================
+Q1.1  Insert a DEPARTMENT row that references an EMPLOYEE row, then try to delete that employee.
+============================================================
+SQL:
+    INSERT INTO employee (ssn, fname, lname, bdate, address, gender, salary, Dno)
+    VALUES ('777777777', 'Sara', 'Kamal', '1994-04-12', '5 Roushdy St, Alexandria', 'F', 40000.00, 1);
+
+    INSERT INTO department (Dnumber, Dname, mgr_ssn, mgr_start_date)
+    VALUES (4, 'Finance', '777777777', '2024-01-01');
+
+    DELETE FROM employee WHERE ssn = '777777777';
+
+    SELECT ssn, fname, lname FROM employee WHERE ssn = '777777777';
+
+Output:
+    (1 row affected)
+    (1 row affected)
+    Msg 547, Level 16, State 0, Line 11
+    The DELETE statement conflicted with the REFERENCE constraint "FK_department_manager".
+    The conflict occurred in database "company", table "dbo.department", column 'mgr_ssn'.
+    The statement has been terminated.
+
+    ssn         fname  lname
+    ----------- ------ ------
+    777777777   Sara   Kamal
+
+Answer:
+    The DELETE is rejected. Employee 777777777 is the manager (mgr_ssn) of the
+    Finance department, so the row is "referenced". Referential integrity forbids
+    deleting a parent row while a child row still points to it. The employee is
+    still in the table (the SELECT proves it). To delete him we must first delete
+    the Finance department or change its manager.
+
+============================================================
+Q1.2  Insert a PROJECT row that references a DEPARTMENT that does not exist yet.
+============================================================
+SQL:
+    INSERT INTO project (Pnumber, Pname, Plocation, Dno)
+    VALUES (50, 'Cloud Migration', 'Alexandria', 9);
+
+Output:
+    Msg 547, Level 16, State 0, Line 1
+    The INSERT statement conflicted with the FOREIGN KEY constraint "FK_project_department".
+    The conflict occurred in database "company", table "dbo.department", column 'Dnumber'.
+    The statement has been terminated.
+
+Answer:
+    The INSERT fails: Dno = 9 is not NULL and there is no department with
+    Dnumber = 9, so the foreign key value breaks referential integrity.
+
+Fix (create the parent first, then the child):
+    INSERT INTO department (Dnumber, Dname, mgr_ssn, mgr_start_date)
+    VALUES (9, 'Legal', '111111111', '2024-01-01');
+
+    INSERT INTO project (Pnumber, Pname, Plocation, Dno)
+    VALUES (50, 'Cloud Migration', 'Alexandria', 9);
+
+    SELECT * FROM project WHERE Pnumber = 50;
+
+Output:
+    (1 row affected)
+    (1 row affected)
+
+    Pnumber  Pname            Plocation   Dno
+    -------- ---------------- ----------- ---
+    50       Cloud Migration  Alexandria  9
+
+============================================================
+Q1.3  mgr_ssn and Dno are both NOT NULL: how do we insert the first row?
+============================================================
+(Tables are empty: problem1_DDL.sql was just re-run.)
+
+Attempt 1 - first employee:
+SQL:
+    INSERT INTO employee (ssn, fname, lname, bdate, address, gender, salary, Dno)
+    VALUES ('111111111', 'Ahmed', 'Hassan', '1985-03-14', '12 Fouad St, Alexandria', 'M', 52000.00, 1);
+Output:
+    Msg 547, Level 16, State 0, Line 1
+    The INSERT statement conflicted with the FOREIGN KEY constraint "FK_employee_department".
+    The conflict occurred in database "company", table "dbo.department", column 'Dnumber'.
+    The statement has been terminated.
+
+Attempt 2 - first department:
+SQL:
+    INSERT INTO department (Dnumber, Dname, mgr_ssn, mgr_start_date)
+    VALUES (1, 'Research', '111111111', '2020-01-01');
+Output:
+    Msg 547, Level 16, State 0, Line 1
+    The INSERT statement conflicted with the FOREIGN KEY constraint "FK_department_manager".
+    The conflict occurred in database "company", table "dbo.employee", column 'ssn'.
+    The statement has been terminated.
+
+Problem: it is a circular dependency. The employee needs the department to exist,
+and the department needs the employee to exist. Because both columns are NOT NULL
+we cannot insert NULL first and update later.
+
+Solution: switch the two foreign keys off, insert the first rows, then switch them
+back on WITH CHECK so SQL Server verifies all the data.
+SQL:
+    ALTER TABLE employee   NOCHECK CONSTRAINT FK_employee_department;
+    ALTER TABLE department NOCHECK CONSTRAINT FK_department_manager;
+
+    INSERT INTO employee (ssn, fname, lname, bdate, address, gender, salary, Dno)
+    VALUES ('111111111', 'Ahmed', 'Hassan', '1985-03-14', '12 Fouad St, Alexandria', 'M', 52000.00, 1);
+
+    INSERT INTO department (Dnumber, Dname, mgr_ssn, mgr_start_date)
+    VALUES (1, 'Research', '111111111', '2020-01-01');
+
+    ALTER TABLE employee   WITH CHECK CHECK CONSTRAINT FK_employee_department;
+    ALTER TABLE department WITH CHECK CHECK CONSTRAINT FK_department_manager;
+
+    SELECT * FROM employee;
+    SELECT * FROM department;
+Output:
+    (1 row affected)
+    (1 row affected)
+
+    ssn        fname  lname   bdate       address                  gender salary    Dno
+    ---------- ------ ------- ----------- ------------------------ ------ --------- ---
+    111111111  Ahmed  Hassan  1985-03-14  12 Fouad St, Alexandria  M      52000.00  1
+
+    Dnumber  Dname     mgr_ssn    mgr_start_date
+    -------- --------- ---------- --------------
+    1        Research  111111111  2020-01-01
+
+Answer:
+    Temporarily disable the foreign key checks (NOCHECK), insert the first
+    employee and the first department that point to each other, then re-enable the
+    constraints with WITH CHECK so integrity is verified again.
+    (Alternative: make mgr_ssn or Dno nullable, insert NULL, then UPDATE.)
