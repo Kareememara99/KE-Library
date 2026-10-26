@@ -446,29 +446,55 @@ def delete_todo(todo_id):
 
 
 
+
 @app.route("/library")
 @login_required
 def library_page():
     conn = None
     cursor = None
 
+    sort_options = {
+        "default": "b.book_id DESC",
+        "price_asc": "b.price ASC",
+        "price_desc": "b.price DESC",
+        "author_asc": "a.name ASC, b.title ASC",
+        "author_desc": "a.name DESC, b.title ASC"
+    }
+
+    sort_by = request.args.get("sort", "default")
+
+    if sort_by not in sort_options:
+        sort_by = "default"
+
     try:
         conn = get_library_connection()
         cursor = conn.cursor()
 
-        # Get all books
-        cursor.execute("""
-            SELECT book_id, title, price, author_id
-            FROM book
-            ORDER BY book_id DESC
-        """)
+        # Get all books with their authors
+        query = f"""
+            SELECT
+                b.book_id,
+                b.title,
+                b.price,
+                b.author_id,
+                a.name AS author_name,
+                a.country AS author_country
+            FROM book b
+            LEFT JOIN author a
+                ON b.author_id = a.author_id
+            ORDER BY {sort_options[sort_by]}
+        """
+
+        cursor.execute(query)
 
         books = [
             {
                 "book_id": row[0],
                 "title": row[1],
                 "price": row[2],
-                "author_id": row[3]
+                "author_id": row[3],
+                "author_name": row[4] or "Unknown",
+                "author_country": row[5] or "Unknown"
             }
             for row in cursor.fetchall()
         ]
@@ -488,22 +514,6 @@ def library_page():
             }
             for row in cursor.fetchall()
         ]
-
-        # Match each book with its author
-        author_lookup = {
-            author["author_id"]: author
-            for author in authors
-        }
-
-        for book in books:
-            author = author_lookup.get(book["author_id"])
-
-            book["author_name"] = (
-                author["name"] if author else "Unknown"
-            )
-            book["author_country"] = (
-                author["country"] if author else "Unknown"
-            )
 
         return render_template(
             "library.html",
