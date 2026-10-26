@@ -75,12 +75,14 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
             background: #2b3a38;
             color: var(--accent-hover);
-            font-size: 22px;
+            font-size: 25px;
+            line-height: 1;
+            flex-shrink: 0;
         }
 
         .nav-right {
@@ -426,7 +428,7 @@
 <body>
     <header class="navbar">
         <a class="brand" href="{{ url_for('library_page') }}">
-            <span class="brand-icon">✦</span>
+            <span class="brand-icon">📖</span>
             KE Library
         </a>
 
